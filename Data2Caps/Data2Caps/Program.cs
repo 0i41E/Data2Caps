@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Windows.Forms;
 using System.IO;
 using System.Diagnostics;
 
 class Program
 {
-    // Define the ASCII art logo as a constant string
+    // Define the ASCII art logo
     const string Logo = @"
         ______      _         _____  _____                 
         |  _  \    | |       / __  \/  __ \                
@@ -23,6 +23,8 @@ class Program
         string input = "";
         bool isFile = false;
         bool isMessage = false;
+        byte[] fileBytes = null;
+        int threshold = 2000; // Maybe decrease - This already takes quite some time
 
         // Check if any arguments were provided
         if (args.Length == 0)
@@ -42,7 +44,7 @@ class Program
                     string filePath = args[i + 1];
                     if (File.Exists(filePath))
                     {
-                        input = File.ReadAllText(filePath);
+                        fileBytes = File.ReadAllBytes(filePath); // Read bytes from provided file
                     }
                     else
                     {
@@ -52,7 +54,7 @@ class Program
                 }
                 else
                 {
-                    Console.WriteLine("Error: Missing file path after /File argument.");
+                    Console.WriteLine("Error: Missing file path after /file argument.");
                     return;
                 }
             }
@@ -65,7 +67,7 @@ class Program
                 }
                 else
                 {
-                    Console.WriteLine("Error: Missing message after /Message argument.");
+                    Console.WriteLine("Error: Missing message after /message argument.");
                     return;
                 }
             }
@@ -77,30 +79,73 @@ class Program
             return;
         }
 
-        string convertedInput = input;
-
-        // Convert input to a char array
-        char[] charArray = convertedInput.ToCharArray();
-
         string keysToSend = "";
 
         // Start a timer to measure the execution time
         Stopwatch stopwatch = Stopwatch.StartNew();
 
-        // Iterate through each character in the char array
-        foreach (char character in charArray)
+        if (isFile)
         {
-            // Iterate through each bit in the character
-            for (int i = 7; i >= 0; i--)
+            if (fileBytes.Length > threshold)
             {
-                // Check if the bit is set
-                if ((character & (1 << i)) != 0)
+                Console.WriteLine($"Converting a large file of {fileBytes.Length} bytes. This may take a while...");
+                Console.WriteLine("");
+            }
+
+            // Convert file bytes to binary string
+            for (int j = 0; j < fileBytes.Length; j++)
+            {
+                byte b = fileBytes[j];
+                for (int i = 7; i >= 0; i--)
                 {
-                    keysToSend += "{NUMLOCK}";
+                    if ((b & (1 << i)) != 0)
+                    {
+                        keysToSend += "{NUMLOCK}";
+                    }
+                    else
+                    {
+                        keysToSend += "{CAPSLOCK}";
+                    }
                 }
-                else
+
+                // Provide progress feedback for every 250 bytes processed, if the size > 2000 bytes
+                if (fileBytes.Length > threshold && j % 250 == 0)
                 {
-                    keysToSend += "{CAPSLOCK}";
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    Console.Write($"Processed {j} of {fileBytes.Length} bytes...");
+                }
+            }
+        }
+        else if (isMessage)
+        {
+            char[] charArray = input.ToCharArray();
+            if (charArray.Length > threshold)
+            {
+                Console.WriteLine($"Converting a large message of {charArray.Length} characters. This may take a while...");
+                Console.WriteLine("");
+            }
+
+            // Convert message to a char array and then to binary string
+            for (int j = 0; j < charArray.Length; j++)
+            {
+                char character = charArray[j];
+                for (int i = 7; i >= 0; i--)
+                {
+                    if ((character & (1 << i)) != 0)
+                    {
+                        keysToSend += "{NUMLOCK}";
+                    }
+                    else
+                    {
+                        keysToSend += "{CAPSLOCK}";
+                    }
+                }
+
+                // Progress status for message being bigger than 2000 bytes
+                if (charArray.Length > threshold && j % 250 == 0)
+                {
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    Console.Write($"Processed {j} of {charArray.Length} characters...");
                 }
             }
         }
@@ -110,18 +155,19 @@ class Program
         // Stop the timer
         stopwatch.Stop();
 
-        // Estimate the total time required (this is a rough estimate)
-        double estimatedTime = charArray.Length * 8 * 0.035; // Assuming each bit takes 0.01 seconds to process
+        // Estimate the total time required
+        double estimatedTime = (isFile ? fileBytes.Length : input.Length) * 8 * 0.035; // Assuming each bit takes 0.035 seconds to process
 
-        // Display the estimated time until completion
+        // Display the estimated time until finish
         Console.WriteLine(Logo);
         Console.WriteLine("");
         Console.WriteLine($"Estimated time until completion: {estimatedTime:F2} seconds");
 
-        // Send the keys using SendKeys
+        // Send the lock key sequence
         SendKeys.SendWait(keysToSend);
     }
 
+    // Help Menu
     static void ShowHelpMenu()
     {
         Console.WriteLine(Logo);
